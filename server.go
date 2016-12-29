@@ -17,23 +17,33 @@ import (
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
+// Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
+// Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
 var upgrader = websocket.Upgrader{} // use default options
 
 func echo(w http.ResponseWriter, r *http.Request) {
+
+   // Upgrade upgrades the HTTP server connection to the WebSocket protocol.
+   // c (i.e. Conn type) represents a WebSocket connection.
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
+
 	defer c.Close()
+
 	for {
-		mt, message, err := c.ReadMessage()
+      // messageType int, message []byte, err error
+		messageType, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
 			break
 		}
-		log.Printf("recv: %s", message)
-		err = c.WriteMessage(mt, message)
+		
+      log.Printf("recv: %s (type=%d)", message, messageType)
+
+		err = c.WriteMessage(messageType, message)
 		if err != nil {
 			log.Println("write:", err)
 			break
