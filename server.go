@@ -1,12 +1,9 @@
-// Copyright 2015 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 // +build ignore
 
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"math/rand"
@@ -17,13 +14,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Command struct {
+	Name   string
+	Result string
+}
+
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 // Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
 // Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
 var upgrader = websocket.Upgrader{} // use default options
 
-func echo(w http.ResponseWriter, r *http.Request) {
+func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
 
 	// Upgrade upgrades the HTTP server connection to the WebSocket protocol.
 	// c (i.e. Conn type) represents a WebSocket connection.
@@ -37,15 +39,25 @@ func echo(w http.ResponseWriter, r *http.Request) {
 
 	for {
 
-		command := "command" + strconv.Itoa(rand.Intn(5))
+		id := strconv.Itoa(rand.Intn(5))
+		newCommand := Command{
+			Name:   "command" + id,
+			Result: "result" + id,
+		}
 
-		err = c.WriteMessage(1, []byte(command))
+		jsonCommand, err := json.Marshal(newCommand)
+		if err != nil {
+			log.Println("marshal:", err)
+			return
+		}
+
+		err = c.WriteMessage(websocket.TextMessage, []byte(jsonCommand))
 		if err != nil {
 			log.Println("write:", err)
 			break
 		}
 
-		log.Printf("sent: %s", command)
+		log.Printf("sent: %s", jsonCommand)
 
 		// messageType int, message []byte, err error
 		messageType, message, err := c.ReadMessage()
@@ -63,6 +75,6 @@ func echo(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/command", echo)
+	http.HandleFunc("/command", handleCommandFunc)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
