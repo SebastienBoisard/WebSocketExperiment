@@ -6,9 +6,6 @@ import (
 	"flag"
 	"log"
 	"net/url"
-	"os"
-   "fmt"
-   "bufio"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,8 +17,7 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.Ldate | log.Ltime)
 
-
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/command"}
 	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -30,33 +26,57 @@ func main() {
 	}
 	defer c.Close()
 
-	done := make(chan struct{})
-
-	go func() {
-		defer c.Close()
-		defer close(done)
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
-			log.Printf("recv: %s", message)
-		}
-	}()
-
-
-   reader := bufio.NewReader(os.Stdin)
-
 	for {
+		messageType, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			continue
+		}
 
-      // Read a text from stdin
-      text, _ := reader.ReadString('\n')
+		if messageType != websocket.TextMessage {
+			log.Println("received a non text message")
+			continue
+		}
 
-      err := c.WriteMessage(websocket.TextMessage, []byte(text))
-      if err != nil {
-         log.Println("write:", err)
-         return
-      }
+		m := string(message[:])
+
+		switch m {
+		case "command1":
+			log.Println("received command1")
+
+			err := c.WriteMessage(websocket.TextMessage, []byte("response1"))
+			if err != nil {
+				log.Println("write:", err)
+				continue
+			}
+
+		case "command2":
+			log.Println("received command2")
+
+			err := c.WriteMessage(websocket.TextMessage, []byte("response2"))
+			if err != nil {
+				log.Println("write:", err)
+				continue
+			}
+
+		case "command4":
+			log.Println("received command4")
+
+			err := c.WriteMessage(websocket.TextMessage, []byte("response4"))
+			if err != nil {
+				log.Println("write:", err)
+				continue
+			}
+
+		default:
+			log.Println("received unknown command")
+
+			err := c.WriteMessage(websocket.TextMessage, []byte("unknown response"))
+			if err != nil {
+				log.Println("write:", err)
+				continue
+			}
+		}
 	}
 }
+   
