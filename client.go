@@ -4,9 +4,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"log"
 	"net/url"
+	"reflect"
 
 	"github.com/gorilla/websocket"
 )
@@ -28,8 +30,40 @@ func execCommand3() string {
 	return "result from command3"
 }
 
-func execCommand(funcName func() string) string {
-	return funcName()
+func execCommand(commandMap map[string]interface{},
+	commandName string,
+	commandParameters ...interface{}) (string, error) {
+
+   // Retreive the function from the map
+	commandFunc := commandMap[commandName]
+   // Test if the function was retreived 
+	if commandFunc == nil {
+		return "", errors.New("Unknown command name")
+	}
+
+   // func ValueOf(i interface{}) Value
+   // ValueOf returns a new Value initialized to the concrete value stored in the interface i. 
+	f := reflect.ValueOf(commandFunc)
+   // NumIn returns a function type's input parameter count.
+   // It panics if the type's Kind is not Func.
+   // TODO: check if f is a function
+	if len(commandParameters) != f.Type().NumIn() {
+		return "", errors.New("Wrong number of parameters")
+	}
+
+	inputParameters := make([]reflect.Value, len(commandParameters))
+	for k, param := range commandParameters {
+		inputParameters[k] = reflect.ValueOf(param)
+	}
+
+   // func (v Value) Call(in []Value) []Value
+   // Cf. https://golang.org/pkg/reflect/#Value.Call
+	results := f.Call(inputParameters)
+
+   // TODO: check if len(results) == 1, and if results[0] is really a string
+	result := results[0].String()
+
+	return result, nil
 }
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -39,7 +73,7 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.Ldate | log.Ltime)
 
-	commandMap := map[string]func() string{
+	commandMap := map[string]interface{}{
 		"command1": execCommand1,
 		"command2": execCommand2,
 		"command3": execCommand3,
@@ -71,12 +105,12 @@ func main() {
 
 		log.Println("received ", command.Name)
 
-		funcCommand := commandMap[command.Name]
-		if funcCommand == nil {
-			log.Println("Error: command name unknown [", command.Name, "]")
+		result, err := execCommand(commandMap, command.Name)
+		if err != nil {
+			log.Println("Error:  [", err, "]")
 			command.Result = "command not found"
 		} else {
-			command.Result = execCommand(funcCommand)
+			command.Result = result
 		}
 
 		jsonCommand, err := json.Marshal(command)
