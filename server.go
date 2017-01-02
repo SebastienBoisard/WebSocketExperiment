@@ -14,11 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Command struct {
-	Name   string
-	Result string
-}
-
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 // Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
@@ -39,12 +34,36 @@ func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
 
 	for {
 
-		id := strconv.Itoa(rand.Intn(3))
-		newCommand := Command{
-			Name: "command" + id,
+		id := strconv.Itoa(rand.Intn(4))
+
+		var action Action
+
+		switch id {
+		case "1":
+			action = Action{
+				Name:       "command" + id,
+				Parameters: []ActionParameter{{Name: "param", Value: int(1)}},
+			}
+
+		case "2":
+			action = Action{
+				Name:       "command" + id,
+				Parameters: []ActionParameter{{Name: "param", Value: "2"}},
+			}
+
+		case "3":
+			action = Action{
+				Name:       "command" + id,
+				Parameters: []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}},
+			}
+
+		default:
+			action = Action{
+				Name: "command" + id,
+			}
 		}
 
-		jsonCommand, err := json.Marshal(newCommand)
+		jsonCommand, err := json.Marshal(action)
 		if err != nil {
 			log.Println("marshal:", err)
 			return
