@@ -39,10 +39,9 @@ func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
 
 	for {
 
-		id := strconv.Itoa(rand.Intn(5))
+		id := strconv.Itoa(rand.Intn(3))
 		newCommand := Command{
-			Name:   "command" + id,
-			Result: "result" + id,
+			Name: "command" + id,
 		}
 
 		jsonCommand, err := json.Marshal(newCommand)

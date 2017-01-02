@@ -16,12 +16,34 @@ type Command struct {
 	Result string
 }
 
+func execCommand1() string {
+	return "result from command1"
+}
+
+func execCommand2() string {
+	return "result from command2"
+}
+
+func execCommand3() string {
+	return "result from command3"
+}
+
+func execCommand(funcName func() string) string {
+	return funcName()
+}
+
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 func main() {
 
 	flag.Parse()
 	log.SetFlags(log.Ldate | log.Ltime)
+
+	commandMap := map[string]func() string{
+		"command1": execCommand1,
+		"command2": execCommand2,
+		"command3": execCommand3,
+	}
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/command"}
 	log.Printf("connecting to %s", u.String())
@@ -49,7 +71,21 @@ func main() {
 
 		log.Println("received ", command.Name)
 
-		err = c.WriteMessage(websocket.TextMessage, []byte(command.Result))
+		funcCommand := commandMap[command.Name]
+		if funcCommand == nil {
+			log.Println("Error: command name unknown [", command.Name, "]")
+			command.Result = "command not found"
+		} else {
+			command.Result = execCommand(funcCommand)
+		}
+
+		jsonCommand, err := json.Marshal(command)
+		if err != nil {
+			log.Println("marshal:", err)
+			return
+		}
+
+		err = c.WriteMessage(websocket.TextMessage, []byte(jsonCommand))
 		if err != nil {
 			log.Println("write:", err)
 			continue
