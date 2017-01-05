@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"fmt"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -20,7 +21,11 @@ var addr = flag.String("addr", "localhost:8080", "http service address")
 // Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
 var upgrader = websocket.Upgrader{} // use default options
 
-func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
+func handleActionFunc(w http.ResponseWriter, r *http.Request) {
+
+	token := r.URL.Query().Get("token")
+
+	fmt.Println("token=", token)
 
 	// Upgrade upgrades the HTTP server connection to the WebSocket protocol.
 	// c (i.e. Conn type) represents a WebSocket connection.
@@ -41,41 +46,41 @@ func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
 		switch id {
 		case "1":
 			action = Action{
-				Name:       "command" + id,
+				Name:       "action" + id,
 				Parameters: []ActionParameter{{Name: "param", Value: int(1)}},
 			}
 
 		case "2":
 			action = Action{
-				Name:       "command" + id,
+				Name:       "action" + id,
 				Parameters: []ActionParameter{{Name: "param", Value: "2"}},
 			}
 
 		case "3":
 			action = Action{
-				Name:       "command" + id,
+				Name:       "action" + id,
 				Parameters: []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}},
 			}
 
 		default:
 			action = Action{
-				Name: "command" + id,
+				Name: "action" + id,
 			}
 		}
 
-		jsonCommand, err := json.Marshal(action)
+		jsonAction, err := json.Marshal(action)
 		if err != nil {
 			log.Println("marshal:", err)
 			return
 		}
 
-		err = c.WriteMessage(websocket.TextMessage, []byte(jsonCommand))
+		err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
 		if err != nil {
 			log.Println("write:", err)
 			break
 		}
 
-		log.Printf("sent: %s", jsonCommand)
+		log.Printf("sent: %s", jsonAction)
 
 		// messageType int, message []byte, err error
 		messageType, message, err := c.ReadMessage()
@@ -93,6 +98,6 @@ func handleCommandFunc(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/command", handleCommandFunc)
+	http.HandleFunc("/action", handleActionFunc)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }

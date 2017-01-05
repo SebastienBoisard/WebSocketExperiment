@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -30,9 +28,9 @@ func execAction(actionMap map[string]interface{},
 	actionName string,
 	actionParameters []ActionParameter) (string, error) {
 
-	// Retreive the function from the map
+	// Retrieve the function from the map
 	actionFunc := actionMap[actionName]
-	// Test if the function was retreived
+	// Test if the function was retrieved
 	if actionFunc == nil {
 		return "", errors.New("Unknown action name")
 	}
@@ -65,6 +63,7 @@ func execAction(actionMap map[string]interface{},
 }
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
+var token = flag.String("token", "1234", "token to identify this client")
 
 func main() {
 
@@ -77,7 +76,7 @@ func main() {
 		"action3": execAction3,
 	}
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action"}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token="+*token}
 	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -111,13 +110,13 @@ func main() {
 			action.Result = result
 		}
 
-		jsonCommand, err := json.Marshal(action)
+		jsonAction, err := json.Marshal(action)
 		if err != nil {
 			log.Println("marshal:", err)
 			return
 		}
 
-		err = c.WriteMessage(websocket.TextMessage, []byte(jsonCommand))
+		err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
 		if err != nil {
 			log.Println("write:", err)
 			continue
