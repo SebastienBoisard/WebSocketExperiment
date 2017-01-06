@@ -30,6 +30,8 @@ type WebSocketStore struct {
 
 var clients []WebSocketStore
 
+var actionMap map[string]chan Action
+
 func handleActionFunc(w http.ResponseWriter, r *http.Request) {
 
 	t := r.URL.Query().Get("token")
@@ -44,8 +46,26 @@ func handleActionFunc(w http.ResponseWriter, r *http.Request) {
 
 	clients = append(clients, WebSocketStore{token: t, socket: c})
 
+	go func() {
+		defer c.Close()
+
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+
+			var action Action
+			json.Unmarshal(message, &action)
+
+			actionMap[action.ID] <- action
+
+		}
+
+	}()
+
 	// TODO: find when to close the WebSocket
-	//defer c.Close()
 }
 
 func sendAction(c *websocket.Conn) {
@@ -64,8 +84,13 @@ func sendAction(c *websocket.Conn) {
 		parameters = []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}}
 	}
 
+	actionID := uuid.NewV4().String()
+
+	actionChan := make(chan Action)
+	actionMap[actionID] = actionChan
+
 	action := Action{
-		ID:         uuid.NewV4().String(),
+		ID:         actionID,
 		Name:       "action" + id,
 		Parameters: parameters,
 	}
@@ -84,14 +109,9 @@ func sendAction(c *websocket.Conn) {
 
 	log.Printf("sent: %s", jsonAction)
 
-	// messageType int, message []byte, err error
-	messageType, message, err := c.ReadMessage()
-	if err != nil {
-		log.Println("read:", err)
-		return
-	}
+	responseAction := <-actionChan
 
-	log.Printf("recv: %s (type=%d)", message, messageType)
+	log.Printf("recv: action[%s] name=%s  result=%s\n", responseAction.ID, responseAction.Name, responseAction.Result)
 }
 
 func
@@ -100,6 +120,7 @@ main() {
 	log.SetFlags(0)
 
 	clients = make([]WebSocketStore, 0)
+	actionMap = make(map[string] chan Action)
 	go func() {
 		reader := bufio.NewReader(os.Stdin)
 
@@ -121,7 +142,7 @@ main() {
 			var choice int
 			fmt.Scanf("%d", &choice)
 
-			sendAction(clients[choice].socket)
+			go sendAction(clients[choice].socket)
 		}
 	}()
 	http.HandleFunc("/action", handleActionFunc)

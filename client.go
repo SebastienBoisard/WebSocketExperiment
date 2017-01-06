@@ -12,17 +12,21 @@ import (
 	"github.com/gorilla/websocket"
 	"bytes"
 	"fmt"
+	"time"
 )
 
 func execAction1(param float64) string {
+	time.Sleep(1000 * time.Millisecond)
 	return "result from action1 param=" + strconv.FormatFloat(param, 'f', -1, 64)
 }
 
 func execAction2(param string) string {
+	time.Sleep(2000 * time.Millisecond)
 	return "result from action2 param=" + param
 }
 
 func execAction3(param1 float64, param2 bool) string {
+	time.Sleep(4000 * time.Millisecond)
 	return "result from action3 param1=" + strconv.FormatFloat(param1, 'f', -1, 64) + " param2=" + strconv.FormatBool(param2)
 }
 
@@ -54,7 +58,7 @@ func execAction(actionMap map[string]interface{},
 		buffer.WriteString(fmt.Sprintf("  parameter[%d]=%s", k, reflect.TypeOf(param.Value)))
 		inputParameters[k] = reflect.ValueOf(param.Value)
 	}
-	log.Printf("action.name=%s %s\n", actionName, buffer.String())
+	//log.Printf("action.name=%s %s\n", actionName, buffer.String())
 
 	// func (v Value) Call(in []Value) []Value
 	// Cf. https://golang.org/pkg/reflect/#Value.Call
@@ -101,30 +105,32 @@ func main() {
 			continue
 		}
 
-		var action Action
-		json.Unmarshal(message, &action)
+		go func() {
+			var action Action
+			json.Unmarshal(message, &action)
 
-		log.Println("received ", action.Name)
+			log.Printf("received action[%s] name=%s\n", action.ID, action.Name)
 
-		result, err := execAction(actionMap, action.Name, action.Parameters)
-		if err != nil {
-			log.Println("Error:  [", err, "]")
-			action.Result = "action not found"
-		} else {
-			action.Result = result
-		}
+			result, err := execAction(actionMap, action.Name, action.Parameters)
+			if err != nil {
+				log.Println("Error:  [", err, "]")
+				action.Result = "action not found"
+			} else {
+				action.Result = result
+			}
 
-		jsonAction, err := json.Marshal(action)
-		if err != nil {
-			log.Println("marshal:", err)
-			return
-		}
+			jsonAction, err := json.Marshal(action)
+			if err != nil {
+				log.Println("marshal:", err)
+				return
+			}
 
-		err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
-		if err != nil {
-			log.Println("write:", err)
-			continue
-		}
-
+			err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
+			if err != nil {
+				log.Println("write:", err)
+				return
+			}
+			log.Printf("sent action[%s] name=%s  result=%s\n", action.ID, action.Name, action.Result)
+		}()
 	}
 }
