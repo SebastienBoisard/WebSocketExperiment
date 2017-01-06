@@ -1,6 +1,7 @@
 package main
 
 type Action struct {
+	ID         string
 	Name       string
 	Parameters []ActionParameter
 	Result     string

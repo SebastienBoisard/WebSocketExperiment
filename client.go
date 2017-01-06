@@ -10,6 +10,8 @@ import (
 	"strconv"
 
 	"github.com/gorilla/websocket"
+	"bytes"
+	"fmt"
 )
 
 func execAction1(param float64) string {
@@ -46,11 +48,13 @@ func execAction(actionMap map[string]interface{},
 		return "", errors.New("Wrong number of parameters")
 	}
 
+	var buffer bytes.Buffer
 	inputParameters := make([]reflect.Value, len(actionParameters))
 	for k, param := range actionParameters {
-		log.Printf("action.name=%s parameter[%d]=%s\n", actionName, k, reflect.TypeOf(param.Value))
+		buffer.WriteString(fmt.Sprintf("  parameter[%d]=%s", k, reflect.TypeOf(param.Value)))
 		inputParameters[k] = reflect.ValueOf(param.Value)
 	}
+	log.Printf("action.name=%s %s\n", actionName, buffer.String())
 
 	// func (v Value) Call(in []Value) []Value
 	// Cf. https://golang.org/pkg/reflect/#Value.Call

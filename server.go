@@ -14,6 +14,7 @@ import (
 	"fmt"
 
 	"github.com/gorilla/websocket"
+	"github.com/satori/go.uuid"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -51,31 +52,22 @@ func sendAction(c *websocket.Conn) {
 
 	id := strconv.Itoa(rand.Intn(4))
 
-	var action Action
+	var parameters []ActionParameter
 
 	switch id {
 	case "1":
-		action = Action{
-			Name:       "action" + id,
-			Parameters: []ActionParameter{{Name: "param", Value: int(1)}},
-		}
-
+		parameters = []ActionParameter{{Name: "param", Value: int(1)}}
 	case "2":
-		action = Action{
-			Name:       "action" + id,
-			Parameters: []ActionParameter{{Name: "param", Value: "2"}},
-		}
+		parameters = []ActionParameter{{Name: "param", Value: "2"}}
 
 	case "3":
-		action = Action{
-			Name:       "action" + id,
-			Parameters: []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}},
-		}
+		parameters = []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}}
+	}
 
-	default:
-		action = Action{
-			Name: "action" + id,
-		}
+	action := Action{
+		ID:         uuid.NewV4().String(),
+		Name:       "action" + id,
+		Parameters: parameters,
 	}
 
 	jsonAction, err := json.Marshal(action)
@@ -102,7 +94,8 @@ func sendAction(c *websocket.Conn) {
 	log.Printf("recv: %s (type=%d)", message, messageType)
 }
 
-func main() {
+func
+main() {
 	flag.Parse()
 	log.SetFlags(0)
 
