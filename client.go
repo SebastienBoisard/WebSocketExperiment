@@ -31,8 +31,8 @@ func execAction3(param1 float64, param2 bool) string {
 }
 
 func execAction(actionMap map[string]interface{},
-	actionName string,
-	actionParameters []ActionParameter) (string, error) {
+actionName string,
+actionParameters []ActionParameter) (string, error) {
 
 	// Retrieve the function from the map
 	actionFunc := actionMap[actionName]
@@ -73,6 +73,25 @@ func execAction(actionMap map[string]interface{},
 var addr = flag.String("addr", "localhost:8080", "http service address")
 var token = flag.String("token", "1234", "token to identify this client")
 
+
+/**
+ * createWebSocketConnection establishes a WebSocket to a server with a specific url.
+ * But the server can be down, so we have to retry to create the WebSocket every x second.
+ * TODO: find if it's the best solution to create a WebSocket with retries
+ */
+func createWebSocketConnection(u url.URL) *websocket.Conn {
+
+	for {
+		c, httpResponse, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		if err == nil {
+			return c
+
+		}
+		log.Println("dial: err=", err, "httpResponse=", httpResponse)
+		time.Sleep(2 * time.Second)
+	}
+}
+
 func main() {
 
 	flag.Parse()
@@ -84,19 +103,19 @@ func main() {
 		"action3": execAction3,
 	}
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token="+*token}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token=" + *token}
 	log.Printf("connecting to %s", u.String())
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
+	// Create a WebSocket to a server with a specific url.
+	c := createWebSocketConnection(u)
+
 	defer c.Close()
 
 	for {
 		messageType, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			log.Println("read: err=", err)
+			c = createWebSocketConnection(u)
 			continue
 		}
 
