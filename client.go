@@ -58,7 +58,6 @@ actionParameters []ActionParameter) (string, error) {
 		buffer.WriteString(fmt.Sprintf("  parameter[%d]=%s", k, reflect.TypeOf(param.Value)))
 		inputParameters[k] = reflect.ValueOf(param.Value)
 	}
-	//log.Printf("action.name=%s %s\n", actionName, buffer.String())
 
 	// func (v Value) Call(in []Value) []Value
 	// Cf. https://golang.org/pkg/reflect/#Value.Call
@@ -115,7 +114,11 @@ func main() {
 		messageType, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read: err=", err)
-			c = createWebSocketConnection(u)
+			// TODO: manage the different possible errors
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
+				log.Printf("IsUnexpectedCloseError: %v\n", err)
+				c = createWebSocketConnection(u)
+			}
 			continue
 		}
 
