@@ -1,10 +1,7 @@
-// +build ignore
-
 package main
 
 import (
 	"encoding/json"
-	"flag"
 	"log"
 	"math/rand"
 	"net/http"
@@ -17,7 +14,6 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
 
 // Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
 // Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
@@ -115,9 +111,7 @@ func sendAction(c *websocket.Conn) {
 }
 
 func
-main() {
-	flag.Parse()
-	log.SetFlags(0)
+startServer() {
 
 	clients = make([]WebSocketStore, 0)
 	actionMap = make(map[string] chan Action)

@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"log"
 	"net/url"
 	"reflect"
@@ -69,8 +68,6 @@ actionParameters []ActionParameter) (string, error) {
 	return result, nil
 }
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
-var token = flag.String("token", "1234", "token to identify this client")
 
 
 /**
@@ -167,10 +164,7 @@ func (w *Worker) receiveRequest() {
 
 
 
-func main() {
-
-	flag.Parse()
-	log.SetFlags(log.Ldate | log.Ltime)
+func startWorker() {
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token=" + *token}
 	log.Printf("connecting to %s", u.String())
