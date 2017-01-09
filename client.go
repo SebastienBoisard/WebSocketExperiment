@@ -91,33 +91,45 @@ func createWebSocketConnection(u url.URL) *websocket.Conn {
 	}
 }
 
-func main() {
 
-	flag.Parse()
-	log.SetFlags(log.Ldate | log.Ltime)
+type Worker struct {
+	wsUrl url.URL
+	connection *websocket.Conn
+	toSend chan []byte
+	actionMap map[string]interface{}
+}
 
-	actionMap := map[string]interface{}{
-		"action1": execAction1,
-		"action2": execAction2,
-		"action3": execAction3,
-	}
-
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token=" + *token}
-	log.Printf("connecting to %s", u.String())
-
-	// Create a WebSocket to a server with a specific url.
-	c := createWebSocketConnection(u)
-
-	defer c.Close()
+func (w *Worker) sendResponse() {
+	defer w.connection.Close()
 
 	for {
-		messageType, message, err := c.ReadMessage()
+		select {
+		case msg, ok := <- w.toSend:
+			// The boolean variable ok returned by a receive operator indicates whether the received value was sent
+			// on the channel (true) or is a zero value returned because the channel is closed and empty (false).
+			if ok == false {
+				// TODO: what to do here ?
+			}
+			err := w.connection.WriteMessage(websocket.TextMessage, msg)
+			if err != nil {
+				log.Println("write:", err)
+			}
+		}
+	}
+}
+
+func (w *Worker) receiveRequest() {
+	defer w.connection.Close()
+
+	for {
+
+		messageType, message, err := w.connection.ReadMessage()
 		if err != nil {
 			log.Println("read: err=", err)
 			// TODO: manage the different possible errors
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
 				log.Printf("IsUnexpectedCloseError: %v\n", err)
-				c = createWebSocketConnection(u)
+				w.connection = createWebSocketConnection(w.wsUrl)
 			}
 			continue
 		}
@@ -133,7 +145,7 @@ func main() {
 
 			log.Printf("received action[%s] name=%s\n", action.ID, action.Name)
 
-			result, err := execAction(actionMap, action.Name, action.Parameters)
+			result, err := execAction(w.actionMap, action.Name, action.Parameters)
 			if err != nil {
 				log.Println("Error:  [", err, "]")
 				action.Result = "action not found"
@@ -147,12 +159,37 @@ func main() {
 				return
 			}
 
-			err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
+			w.toSend <- []byte(jsonAction)
 			log.Printf("sent action[%s] name=%s  result=%s\n", action.ID, action.Name, action.Result)
 		}()
 	}
+}
+
+
+
+func main() {
+
+	flag.Parse()
+	log.SetFlags(log.Ldate | log.Ltime)
+
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token=" + *token}
+	log.Printf("connecting to %s", u.String())
+
+	// Create a WebSocket to a server with a specific url.
+	c := createWebSocketConnection(u)
+
+	worker := Worker {
+		wsUrl: u,
+		connection: c,
+		toSend: make(chan[]byte),
+		actionMap: map[string]interface{}{
+			"action1": execAction1,
+			"action2": execAction2,
+			"action3": execAction3,
+		},
+	}
+
+	go worker.sendResponse()
+
+	worker.receiveRequest()
 }
