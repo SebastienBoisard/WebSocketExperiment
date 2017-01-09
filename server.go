@@ -6,27 +6,24 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
-	"bufio"
-	"os"
-	"fmt"
 
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"time"
 )
-
 
 // Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
 // Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
 var upgrader = websocket.Upgrader{} // use default options
 
-type WebSocketStore struct {
-	token  string
-	socket *websocket.Conn
+type Hub struct {
+	token      string
+	connection *websocket.Conn
+	toSend     chan []byte
+    actionMap  map[string] chan *Action
 }
 
-var clients []WebSocketStore
-
-var actionMap map[string]chan Action
+var hubs []*Hub
 
 func handleActionFunc(w http.ResponseWriter, r *http.Request) {
 
@@ -40,32 +37,42 @@ func handleActionFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clients = append(clients, WebSocketStore{token: t, socket: c})
+	defer c.Close()
 
-	go func() {
-		defer c.Close()
+	h := &Hub{token: t, connection: c, toSend: make(chan []byte), actionMap: make(map[string] chan *Action)}
+	hubs = append(hubs, h)
 
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
+	go h.sendRequest()
 
-			var action Action
-			json.Unmarshal(message, &action)
+	go h.receiveResponse()
 
-			actionMap[action.ID] <- action
-
-		}
-
-	}()
-
-	// TODO: find when to close the WebSocket
+	h.run()
 }
 
-func sendAction(c *websocket.Conn) {
+func (h *Hub) receiveResponse() {
+	defer h.connection.Close()
 
+	for {
+		messageType, message, err := h.connection.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			continue
+		}
+
+		if messageType != websocket.TextMessage {
+			log.Println("received a non text message")
+			continue
+		}
+
+		var action Action
+		json.Unmarshal(message, &action)
+
+		h.actionMap[action.ID] <- &action
+	}
+}
+
+
+func (h *Hub) createRequest() {
 	id := strconv.Itoa(rand.Intn(4))
 
 	var parameters []ActionParameter
@@ -73,6 +80,7 @@ func sendAction(c *websocket.Conn) {
 	switch id {
 	case "1":
 		parameters = []ActionParameter{{Name: "param", Value: int(1)}}
+
 	case "2":
 		parameters = []ActionParameter{{Name: "param", Value: "2"}}
 
@@ -82,8 +90,8 @@ func sendAction(c *websocket.Conn) {
 
 	actionID := uuid.NewV4().String()
 
-	actionChan := make(chan Action)
-	actionMap[actionID] = actionChan
+	actionChan := make(chan *Action)
+	h.actionMap[actionID] = actionChan
 
 	action := Action{
 		ID:         actionID,
@@ -97,48 +105,75 @@ func sendAction(c *websocket.Conn) {
 		return
 	}
 
-	err = c.WriteMessage(websocket.TextMessage, []byte(jsonAction))
-	if err != nil {
-		log.Println("write:", err)
-		return
-	}
+	h.toSend <- []byte(jsonAction)
 
 	log.Printf("sent: %s", jsonAction)
 
-	responseAction := <-actionChan
+	responseAction := <- actionChan
+
 
 	log.Printf("recv: action[%s] name=%s  result=%s\n", responseAction.ID, responseAction.Name, responseAction.Result)
+
 }
 
-func
-startServer() {
+func (h *Hub) run() {
 
-	clients = make([]WebSocketStore, 0)
-	actionMap = make(map[string] chan Action)
-	go func() {
-		reader := bufio.NewReader(os.Stdin)
+	for {
 
-		for {
+		go h.createRequest()
+
+		time.Sleep(time.Duration(rand.Int63n(50))*time.Millisecond)
+	}
+}
+
+func (h *Hub) sendRequest() {
+	defer h.connection.Close()
+
+	for {
+		select {
+		case msg, ok := <-h.toSend:
+			// The boolean variable ok returned by a receive operator indicates whether the received value was sent
+			// on the channel (true) or is a zero value returned because the channel is closed and empty (false).
+			if ok == false {
+				// TODO: what to do here ?
+			}
+			err := h.connection.WriteMessage(websocket.TextMessage, msg)
+			if err != nil {
+				log.Println("write:", err)
+			}
+		}
+	}
+}
+
+func startServer() {
+	/*
+		clients = make([]WebSocketStore, 0)
+		actionMap = make(map[string]chan Action)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
 
 			for {
-				if len(clients) > 0 {
-					break
+
+				for {
+					if len(clients) > 0 {
+						break
+					}
+					fmt.Println("No client for now. Press [enter] to refresh")
+					reader.ReadString('\n')
 				}
-				fmt.Println("No client for now. Press [enter] to refresh")
-				reader.ReadString('\n')
-			}
 
-			fmt.Println("List of the clients:")
-			for i, v := range clients {
-				fmt.Printf("%d- %s\n", i, v.token)
-			}
-			fmt.Print("Choose a client: ")
-			var choice int
-			fmt.Scanf("%d", &choice)
+				fmt.Println("List of the clients:")
+				for i, v := range clients {
+					fmt.Printf("%d- %s\n", i, v.token)
+				}
+				fmt.Print("Choose a client: ")
+				var choice int
+				fmt.Scanf("%d", &choice)
 
-			go sendAction(clients[choice].socket)
-		}
-	}()
+				go sendAction(clients[choice].socket)
+			}
+		}()
+	*/
 	http.HandleFunc("/action", handleActionFunc)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }

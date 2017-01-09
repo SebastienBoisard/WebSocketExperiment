@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/gorilla/websocket"
 	"bytes"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"time"
 )
 
@@ -30,8 +30,8 @@ func execAction3(param1 float64, param2 bool) string {
 }
 
 func execAction(actionMap map[string]interface{},
-actionName string,
-actionParameters []ActionParameter) (string, error) {
+	actionName string,
+	actionParameters []ActionParameter) (string, error) {
 
 	// Retrieve the function from the map
 	actionFunc := actionMap[actionName]
@@ -68,8 +68,6 @@ actionParameters []ActionParameter) (string, error) {
 	return result, nil
 }
 
-
-
 /**
  * createWebSocketConnection establishes a WebSocket to a server with a specific url.
  * But the server can be down, so we have to retry to create the WebSocket every x second.
@@ -88,12 +86,11 @@ func createWebSocketConnection(u url.URL) *websocket.Conn {
 	}
 }
 
-
 type Worker struct {
-	wsUrl url.URL
+	wsUrl      url.URL
 	connection *websocket.Conn
-	toSend chan []byte
-	actionMap map[string]interface{}
+	toSend     chan []byte
+	actionMap  map[string]interface{}
 }
 
 func (w *Worker) sendResponse() {
@@ -101,7 +98,7 @@ func (w *Worker) sendResponse() {
 
 	for {
 		select {
-		case msg, ok := <- w.toSend:
+		case msg, ok := <-w.toSend:
 			// The boolean variable ok returned by a receive operator indicates whether the received value was sent
 			// on the channel (true) or is a zero value returned because the channel is closed and empty (false).
 			if ok == false {
@@ -162,8 +159,6 @@ func (w *Worker) receiveRequest() {
 	}
 }
 
-
-
 func startWorker() {
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/action", RawQuery: "token=" + *token}
@@ -172,10 +167,10 @@ func startWorker() {
 	// Create a WebSocket to a server with a specific url.
 	c := createWebSocketConnection(u)
 
-	worker := Worker {
-		wsUrl: u,
+	worker := Worker{
+		wsUrl:      u,
 		connection: c,
-		toSend: make(chan[]byte),
+		toSend:     make(chan []byte),
 		actionMap: map[string]interface{}{
 			"action1": execAction1,
 			"action2": execAction2,
