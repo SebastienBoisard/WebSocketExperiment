@@ -18,12 +18,14 @@ import (
 // Without parameters, default options will be applied (ReadBufferSize WriteBufferSize are set to 4096
 var upgrader = websocket.Upgrader{} // use default options
 
+// Hub is the link between a worker and the server
 type Hub struct {
 	token      string
 	connection *websocket.Conn
 	toSend     chan []byte
 	actions    actionMap
 }
+
 type actionMap struct {
 	sync.RWMutex
 	m map[string]chan *Action
@@ -148,7 +150,7 @@ func (h *Hub) createRequest() {
 
 	elapsedTime := time.Now().Sub(startCreateRequest).Seconds()
 	if elapsedTime > 1 {
-		fmt.Printf("request action%s completed in %d\n", id, elapsedTime)
+		fmt.Printf("request action%s completed in %f\n", id, elapsedTime)
 	}
 
 	if counter%1000 == 0 {

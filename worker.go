@@ -86,6 +86,7 @@ func createWebSocketConnection(u url.URL) *websocket.Conn {
 	}
 }
 
+// Worker contains all the data necessary for a worker to work
 type Worker struct {
 	wsUrl      url.URL
 	connection *websocket.Conn
