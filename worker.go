@@ -15,17 +15,17 @@ import (
 )
 
 func execAction1(param float64) string {
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	return "result from action1 param=" + strconv.FormatFloat(param, 'f', -1, 64)
 }
 
 func execAction2(param string) string {
-	time.Sleep(2000 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	return "result from action2 param=" + param
 }
 
 func execAction3(param1 float64, param2 bool) string {
-	time.Sleep(4000 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 	return "result from action3 param1=" + strconv.FormatFloat(param1, 'f', -1, 64) + " param2=" + strconv.FormatBool(param2)
 }
 
@@ -106,7 +106,7 @@ func (w *Worker) sendResponse() {
 			}
 			err := w.connection.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
-				log.Println("write:", err)
+				log.Println("Error while writing:", err)
 			}
 		}
 	}
@@ -137,11 +137,10 @@ func (w *Worker) receiveRequest() {
 			var action Action
 			json.Unmarshal(message, &action)
 
-			log.Printf("received action[%s] name=%s\n", action.ID, action.Name)
+			//log.Printf("received action[%s] name=%s\n", action.ID, action.Name)
 
 			result, err := execAction(w.actionMap, action.Name, action.Parameters)
 			if err != nil {
-				log.Println("Error:  [", err, "]")
 				action.Result = "action not found"
 			} else {
 				action.Result = result
@@ -149,12 +148,12 @@ func (w *Worker) receiveRequest() {
 
 			jsonAction, err := json.Marshal(action)
 			if err != nil {
-				log.Println("marshal:", err)
+				log.Println("Error while marshalling:", err)
 				return
 			}
 
 			w.toSend <- []byte(jsonAction)
-			log.Printf("sent action[%s] name=%s  result=%s\n", action.ID, action.Name, action.Result)
+			//log.Printf("sent action[%s] name=%s  result=%s\n", action.ID, action.Name, action.Result)
 		}()
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
 	"sync"
@@ -60,7 +61,7 @@ func (h *Hub) receiveResponse() {
 	for {
 		messageType, message, err := h.connection.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			log.Println("Error while reading:", err)
 			continue
 		}
 
@@ -79,19 +80,29 @@ func (h *Hub) receiveResponse() {
 }
 
 func (h *Hub) createRequest() {
+
+	startCreateRequest := time.Now()
+
 	id := strconv.Itoa(rand.Intn(4))
 
 	var parameters []ActionParameter
+	var wantedResult string
 
 	switch id {
 	case "1":
 		parameters = []ActionParameter{{Name: "param", Value: int(1)}}
+		wantedResult = "result from action1 param=1"
 
 	case "2":
 		parameters = []ActionParameter{{Name: "param", Value: "2"}}
+		wantedResult = "result from action2 param=2"
 
 	case "3":
 		parameters = []ActionParameter{{Name: "param1", Value: 3.3}, {Name: "param2", Value: true}}
+		wantedResult = "result from action3 param1=3.3 param2=true"
+
+	default:
+		wantedResult = "action not found"
 	}
 
 	actionID := uuid.NewV4().String()
@@ -115,18 +126,51 @@ func (h *Hub) createRequest() {
 
 	h.toSend <- []byte(jsonAction)
 
-	log.Printf("sent: %s", jsonAction)
+	//log.Printf("sent: %s", jsonAction)
 
 	responseAction := <-actionChan
 
-	log.Printf("recv: action[%s] name=%s  result=%s\n", responseAction.ID, responseAction.Name, responseAction.Result)
+	if responseAction.ID != action.ID {
+		log.Printf("error on action.ID\n")
+		return
+	}
 
+	if responseAction.Result != wantedResult {
+		log.Printf("error on result expected=%s but got=%s\n", wantedResult, responseAction.Result)
+		return
+	}
+
+	h.actions.Lock()
+	delete(h.actions.m, actionID)
+	h.actions.Unlock()
+
+	counter++
+
+	elapsedTime := time.Now().Sub(startCreateRequest).Seconds()
+	if elapsedTime > 1 {
+		fmt.Printf("request action%s completed in %d\n", id, elapsedTime)
+	}
+
+	if counter%1000 == 0 {
+		fmt.Printf("%d requests in %1.0f seconds\n", counter, time.Now().Sub(startTime).Seconds())
+	}
+
+	//log.Printf("recv: action[%s] name=%s  result=%s\n", responseAction.ID, responseAction.Name, responseAction.Result)
 }
 
 func (h *Hub) run() {
 
-	for {
+	for i := 0; i < 1000; i++ {
+		go func() {
+			for {
+				go h.createRequest()
 
+				time.Sleep(time.Duration(rand.Int63n(50)) * time.Millisecond)
+			}
+		}()
+	}
+
+	for {
 		go h.createRequest()
 
 		time.Sleep(time.Duration(rand.Int63n(50)) * time.Millisecond)
@@ -152,35 +196,10 @@ func (h *Hub) sendRequest() {
 	}
 }
 
+var counter int
+var startTime = time.Now()
+
 func startServer() {
-	/*
-		clients = make([]WebSocketStore, 0)
-		actionMap = make(map[string]chan Action)
-		go func() {
-			reader := bufio.NewReader(os.Stdin)
-
-			for {
-
-				for {
-					if len(clients) > 0 {
-						break
-					}
-					fmt.Println("No client for now. Press [enter] to refresh")
-					reader.ReadString('\n')
-				}
-
-				fmt.Println("List of the clients:")
-				for i, v := range clients {
-					fmt.Printf("%d- %s\n", i, v.token)
-				}
-				fmt.Print("Choose a client: ")
-				var choice int
-				fmt.Scanf("%d", &choice)
-
-				go sendAction(clients[choice].socket)
-			}
-		}()
-	*/
 	http.HandleFunc("/action", handleActionFunc)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
