@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/satori/go.uuid"
+	"sync"
 	"time"
 )
 
@@ -20,7 +21,11 @@ type Hub struct {
 	token      string
 	connection *websocket.Conn
 	toSend     chan []byte
-    actionMap  map[string] chan *Action
+	actions    actionMap
+}
+type actionMap struct {
+	sync.RWMutex
+	m map[string]chan *Action
 }
 
 var hubs []*Hub
@@ -39,7 +44,7 @@ func handleActionFunc(w http.ResponseWriter, r *http.Request) {
 
 	defer c.Close()
 
-	h := &Hub{token: t, connection: c, toSend: make(chan []byte), actionMap: make(map[string] chan *Action)}
+	h := &Hub{token: t, connection: c, toSend: make(chan []byte), actions: actionMap{m: make(map[string]chan *Action)}}
 	hubs = append(hubs, h)
 
 	go h.sendRequest()
@@ -67,10 +72,11 @@ func (h *Hub) receiveResponse() {
 		var action Action
 		json.Unmarshal(message, &action)
 
-		h.actionMap[action.ID] <- &action
+		h.actions.Lock()
+		h.actions.m[action.ID] <- &action
+		h.actions.Unlock()
 	}
 }
-
 
 func (h *Hub) createRequest() {
 	id := strconv.Itoa(rand.Intn(4))
@@ -91,7 +97,9 @@ func (h *Hub) createRequest() {
 	actionID := uuid.NewV4().String()
 
 	actionChan := make(chan *Action)
-	h.actionMap[actionID] = actionChan
+	h.actions.Lock()
+	h.actions.m[actionID] = actionChan
+	h.actions.Unlock()
 
 	action := Action{
 		ID:         actionID,
@@ -109,8 +117,7 @@ func (h *Hub) createRequest() {
 
 	log.Printf("sent: %s", jsonAction)
 
-	responseAction := <- actionChan
-
+	responseAction := <-actionChan
 
 	log.Printf("recv: action[%s] name=%s  result=%s\n", responseAction.ID, responseAction.Name, responseAction.Result)
 
@@ -122,7 +129,7 @@ func (h *Hub) run() {
 
 		go h.createRequest()
 
-		time.Sleep(time.Duration(rand.Int63n(50))*time.Millisecond)
+		time.Sleep(time.Duration(rand.Int63n(50)) * time.Millisecond)
 	}
 }
 
